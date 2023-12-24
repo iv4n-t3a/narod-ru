@@ -1,7 +1,11 @@
 import sqlite3
+import tqdm
 import matplotlib.pyplot as plt
+from fuzzywuzzy import fuzz
+from fuzzywuzzy import process
 
-ALPHABET = 'abcdefghijklmnopqrstuvwxyzйцукенгшщзхъфывапролджэячсмитьбю'
+# ALPHABET = 'abcdefghijklmnopqrstuvwxyzйцукенгшщзхъфывапролджэячсмитьбю'
+ALPHABET = 'йцукенгшщзхъфывапролджэячсмитьбю'
 
 bad_words = 'html http'.split()
 
@@ -37,6 +41,18 @@ def get_most_popular_words(state : map, words_required : int):
         res.append(item)
     return res
 
+def merge_similar_words(state):
+    new_state = {}
+    for word1, count1 in state:
+        for word2 in new_state:
+            if fuzz.ratio(word1, word2) >= 75:
+                new_state[word2] += count1
+                break
+        else:
+            new_state[word1] = count1
+
+    return new_state
+
 # open db
 conn = sqlite3.connect('sites.db')
 cur = conn.cursor()
@@ -46,12 +62,16 @@ pages = cur.fetchall()
 
 state = {}
 
-for text in pages:
-    words = get_words_list(text)
+for text in tqdm.tqdm(pages):
+    words = get_words_list(text[0])
     words = filter_words(words)
     state = get_words_state(words, state)
 
+most_popular = get_most_popular_words(state, 400)
+state = merge_similar_words(most_popular)
 most_popular = get_most_popular_words(state, 12)
 
 plt.bar([i[0] for i in most_popular], height=[i[1] for i in most_popular])
+plt.xlabel("Слово")
+plt.ylabel("Количество")
 plt.show()
